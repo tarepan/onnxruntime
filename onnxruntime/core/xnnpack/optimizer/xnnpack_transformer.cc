@@ -10,6 +10,7 @@
 #include "core/optimizer/selectors_actions/helpers.h"
 #include "core/optimizer/utils.h"
 #include "core/optimizer/transpose_optimizer/optimizer_utils.h"
+#include "core/optimizer/nhwc_transformer.h"
 
 using namespace ONNX_NAMESPACE;
 using namespace ::onnxruntime::common;
@@ -23,6 +24,7 @@ Status XnnPackTransformer::ApplyImpl(Graph& main_graph, bool& modified, int /* g
   GraphViewer gv(main_graph);
   std::vector<NodeIndex> conv_nodes;
   for (auto& nodeRef : gv.Nodes()) {
+    if (!NhwcTransformer::IsConvSupportedByXNNPack(nodeRef, false)) continue;
     if (nodeRef.OpType() != "NhwcConv") continue;
     conv_nodes.push_back(nodeRef.Index());
   }

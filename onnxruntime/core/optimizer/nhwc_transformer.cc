@@ -7,13 +7,54 @@
 #include "core/optimizer/nhwc_transformer.h"
 #include "core/optimizer/utils.h"
 #include "core/optimizer/transpose_optimizer/optimizer_utils.h"
+#include "core/framework/op_node_proto_helper.h"
 
 using namespace ONNX_NAMESPACE;
 using namespace ::onnxruntime::common;
 using namespace onnx_layout_transformation;
+#define ORT_RETURN_FALSE_IF_ERROR(expr) \
+  do {                                  \
+    auto _status = (expr);              \
+    if ((!_status.IsOK())) {            \
+      return false;                     \
+    }                                   \
+  } while (0)
 
 namespace onnxruntime {
 
+// This function runs before and after NhwcTransformer
+bool NhwcTransformer::IsConvSupportedByXNNPack(const Node& nodeRef, bool input_is_nchw) {
+  if (nodeRef.OpType() != "Conv" && nodeRef.OpType() != "NhwcConv") return false;
+  // Conv has either 2 or 3 inputs.
+  auto input_defs = nodeRef.InputDefs();
+  if (input_defs.size() != 2 && input_defs.size() != 3) return false;
+  // The two or three inputs are: X, W, B
+  const NodeArg* weight_node_arg = input_defs[1];
+  if (weight_node_arg == nullptr) return false;
+  bool is_weight_shape_known = optimizer_utils::IsShapeKnownOnAllDims(*weight_node_arg, 4);
+  if (!is_weight_shape_known) return false;
+
+  ProtoHelperNodeContext nc(nodeRef);
+  OpNodeProtoHelper info(&nc);
+  auto X_input = info.GetInputType(0);
+  auto weight_input = info.GetInputType(1);
+  TensorShape weight_shape = utils::GetTensorShapeFromTensorShapeProto(weight_input->tensor_type().shape());
+  TensorShape X_shape = utils::GetTensorShapeFromTensorShapeProto(X_input->tensor_type().shape());
+  if (X_shape.NumDimensions() != 4) return false;
+  int64_t group = 1;
+  ORT_RETURN_FALSE_IF_ERROR(info.GetAttr<int64_t>("group", &group));
+  int64_t input_channels = input_is_nchw ? X_shape[1] : X_shape[3];
+  if (group != 1 && group != input_channels) return false;
+  std::string auto_pad_str;
+  ORT_RETURN_FALSE_IF_ERROR(info.GetAttr<std::string>("auto_pad", &auto_pad_str));
+  if (auto_pad_str != "NOTSET" && auto_pad_str != "VALID" && auto_pad_str != "SAME") return false;
+  std::vector<int64_t> pads;
+  Status st = info.GetAttrs<int64_t>("pads", pads);
+  if (st.IsOK()) {
+    if (pads.size() != 4) return false;
+  }
+  return true;
+}
 Status NhwcTransformer::ApplyImpl(Graph& graph, bool& modified, int graph_level, const logging::Logger& logger) const {
   GraphViewer graph_viewer(graph);
   for (auto index : graph_viewer.GetNodesInTopologicalOrder()) {
@@ -60,9 +101,9 @@ Status NhwcTransformer::ApplyImpl(Graph& graph, bool& modified, int graph_level,
 
       modified = true;
     }
-    //Currently mlas doesn't NHWC Conv. So we only do the conversion when xnnpack is enabled
+    // Currently mlas doesn't NHWC Conv. So we only do the conversion when xnnpack is enabled
 #ifdef USE_XNNPACK
-    else if (node->OpType() == "Conv") {
+    else if (IsConvSupportedByXNNPack(NodeFromApiNode(*node), true)) {
       auto domain = node->Domain();
 
       // Skip if domain is incorrect
