@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 /* Modifications Copyright (c) Microsoft. */
-#define _CRT_SECURE_NO_WARNINGS
+//#define _CRT_SECURE_NO_WARNINGS
 
 #include "core/xnnpack/conv.h"
 #include <xnnpack.h>
@@ -29,6 +29,7 @@
 
 namespace onnxruntime {
 namespace xnnpack {
+#if 0
 void CompareData(const Tensor& input, const char* varname) { 
   size_t len2 = input.Shape().Size();
   std::vector<float> v(len2);
@@ -45,6 +46,7 @@ void CompareData(const Tensor& input, const char* varname) {
     assert(diff < 1e-5);
   }
 }
+#endif
 
 Convolution2d::Convolution2d(const OpKernelInfo& info) : OpKernel(info) {
   const Tensor* weight = nullptr;
