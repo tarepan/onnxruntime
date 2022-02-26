@@ -233,10 +233,6 @@ DepthWiseConvolution2d::DepthWiseConvolution2d(const OpKernelInfo& info) : OpKer
     flags |= XNN_FLAG_TENSORFLOW_SAME_PADDING;
   }
   int64_t depth_multiplier = kernel_shape[3] / input_channels;
-  const float* f1 = weight->Data<float>();
-  const float* f2 = B->Data<float>();
-  assert(f1 != nullptr);
-  assert(f2 != nullptr);
   xnn_status status = xnn_create_convolution2d_nhwc_f32(
       gsl::narrow<uint32_t>(input_padding_top),
       gsl::narrow<uint32_t>(input_padding_right),
