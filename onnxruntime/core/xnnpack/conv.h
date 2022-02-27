@@ -5,10 +5,20 @@
 
 #include "core/framework/op_kernel.h"
 
-struct xnn_operator;
+#include <xnnpack.h>
+
 
 namespace onnxruntime {
 namespace xnnpack {
+struct XNNPackOperatorDeleter {
+  void operator()(struct xnn_operator* p) {
+    if (p != nullptr) {
+      // Ignore returned value because it fails only when xnn pack wasn't initialized
+      xnn_delete_operator(p);
+    }
+  }
+};
+using XNNPackOperator = std::unique_ptr<struct xnn_operator, XNNPackOperatorDeleter>;
 
 class Convolution2d : public OpKernel {
  public:
@@ -17,7 +27,7 @@ class Convolution2d : public OpKernel {
   Status Compute(OpKernelContext* context) const override;
 
  private:
-  struct xnn_operator* op0 = nullptr;
+  XNNPackOperator op0 = nullptr;
   TensorShape output_shape;
 };
 
@@ -27,7 +37,7 @@ class DepthWiseConvolution2d : public OpKernel {
   Status Compute(OpKernelContext*) const override;
 
  private:
-  struct xnn_operator* op0 = nullptr;
+  XNNPackOperator op0 = nullptr;
   TensorShape output_shape;
   float* weight_ = nullptr;
 };

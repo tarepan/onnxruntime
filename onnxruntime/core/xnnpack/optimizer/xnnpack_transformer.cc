@@ -28,6 +28,7 @@ Status XnnPackTransformer::ApplyImpl(Graph& main_graph, bool& modified, int /* g
     if (nodeRef.OpType() != "NhwcConv") continue;
     conv_nodes.push_back(nodeRef.Index());
   }
+  //Any error below is fatal, because if XNNPack couldn't run the node, we shouldn't convert it Nhwc.
   for (NodeIndex ni : conv_nodes) {
     Node* node_p = main_graph.GetNode(ni);
     if (node_p == nullptr)
@@ -95,9 +96,21 @@ Status XnnPackTransformer::ApplyImpl(Graph& main_graph, bool& modified, int /* g
 
     // onnx_layout_transformation::TransposesNodeInputs(*api_graph, *nodeRef, 1, input_perm);
     std::vector<int64_t> strides, dilations, pads;
-    ORT_RETURN_IF_ERROR(info.GetAttrs<int64_t>("strides", strides));
-    ORT_RETURN_IF_ERROR(info.GetAttrs<int64_t>("dilations", dilations));
-    ORT_RETURN_IF_ERROR(info.GetAttrs<int64_t>("pads", pads));
+    Status st = info.GetAttrs<int64_t>("strides", strides);
+    if (!st.IsOK()) {
+      // ONNX spec says: "If not present, the stride defaults is 1 along each spatial axis."
+      strides.assign(4, 1);
+    }
+    st = info.GetAttrs<int64_t>("dilations", dilations);
+    if (!st.IsOK()) {
+      // ONNX spec says: "If not present, the dilation defaults is 1 along each spatial axis."
+      dilations.assign(4, 1);
+    }
+    st = info.GetAttrs<int64_t>("pads", pads);
+    if (!st.IsOK()) {
+      // ONNX spec says: "If not present, the padding defaults to 0 along start and end of each spatial axis."
+      pads.resize(4);
+    }
 
     // auto inputs = nodeRef->Inputs();
     // auto outputs = nodeRef->Outputs();

@@ -10,6 +10,7 @@
 #include "test/test_environment.h"
 #include "test/framework/test_utils.h"
 #include "test/util/include/inference_session_wrapper.h"
+#include "asserts.h"
 #include <cmath>
 
 #include "gtest/gtest.h"
@@ -179,7 +180,7 @@ void NchwcOptimizerTester(const std::function<void(NchwcTestHelper& helper)>& bu
               domain_to_version, {}, DefaultLoggingManager().DefaultLogger());
   NchwcTestHelper helper(model.MainGraph());
   build_test_case(helper);
-  ASSERT_TRUE(model.MainGraph().Resolve().IsOK());
+  ASSERT_STATUS_OK(model.MainGraph().Resolve());
 
   // Serialize the model to a string.
   std::string model_data;
@@ -190,8 +191,8 @@ void NchwcOptimizerTester(const std::function<void(NchwcTestHelper& helper)>& bu
     session_options.graph_optimization_level = level;
     session_options.session_logid = "NchwcOptimizerTests";
     InferenceSessionWrapper session{session_options, GetEnvironment()};
-    ASSERT_TRUE(session.Load(model_data.data(), static_cast<int>(model_data.size())).IsOK());
-    ASSERT_TRUE(session.Initialize().IsOK());
+    ASSERT_STATUS_OK(session.Load(model_data.data(), static_cast<int>(model_data.size())));
+    ASSERT_STATUS_OK(session.Initialize());
 
     RunOptions run_options;
     auto status = session.Run(run_options, helper.feeds_, helper.output_names_, &fetches);
@@ -226,7 +227,7 @@ void NchwcOptimizerTester(const std::function<void(NchwcTestHelper& helper)>& bu
   }
 }
 
-#ifndef DISABLE_CONTRIB_OPS
+#if !defined(DISABLE_CONTRIB_OPS) && !defined(USE_XNNPACK)
 
 TEST(NchwcOptimizerTests, ConvNchw) {
   auto test_case = [&](const std::string& activation_op_type) {

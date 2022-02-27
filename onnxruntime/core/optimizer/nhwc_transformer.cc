@@ -28,6 +28,7 @@ bool NhwcTransformer::IsConvSupportedByXNNPack(const Node& nodeRef, bool input_i
   // Conv has either 2 or 3 inputs.
   auto input_defs = nodeRef.InputDefs();
   if (input_defs.size() != 2 && input_defs.size() != 3) return false;
+
   // The two or three inputs are: X, W, B
   const NodeArg* weight_node_arg = input_defs[1];
   if (weight_node_arg == nullptr) return false;
@@ -37,6 +38,8 @@ bool NhwcTransformer::IsConvSupportedByXNNPack(const Node& nodeRef, bool input_i
   ProtoHelperNodeContext nc(nodeRef);
   OpNodeProtoHelper info(&nc);
   auto X_input = info.GetInputType(0);
+  if (!X_input->has_tensor_type()) return false;
+  if (X_input->tensor_type().elem_type() != ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT) return false;
   auto weight_input = info.GetInputType(1);
   TensorShape weight_shape = utils::GetTensorShapeFromTensorShapeProto(weight_input->tensor_type().shape());
   TensorShape X_shape = utils::GetTensorShapeFromTensorShapeProto(X_input->tensor_type().shape());
@@ -57,8 +60,30 @@ bool NhwcTransformer::IsConvSupportedByXNNPack(const Node& nodeRef, bool input_i
 }
 Status NhwcTransformer::ApplyImpl(Graph& graph, bool& modified, int graph_level, const logging::Logger& logger) const {
   GraphViewer graph_viewer(graph);
+  //Run constant propagation for XNNPack EP
+  std::unordered_set<const NodeArg*> graph_const_values;
+
   for (auto index : graph_viewer.GetNodesInTopologicalOrder()) {
     auto& node = *graph.GetNode(index);
+    if (!node.ContainsSubgraph() && node.OpType() != "DequantizeLinear" && node.OpType() != "QuantizeLinear"
+        && optimizer_utils::IsOperationDeterministic(node.Domain(), node.OpType())) {
+      bool is_all_const = true;
+      for (const NodeArg* in : node.InputDefs()) {
+        if (!in->Exists()) continue;
+        if (graph_const_values.find(in) != graph_const_values.end()) continue;
+        if (graph.GetConstantInitializer(in->Name(), false) != nullptr) {
+          graph_const_values.insert(in);
+          continue;
+        }
+        // This input is not const
+        is_all_const = false;
+      }
+      if (is_all_const) {
+        for (const NodeArg* out : node.OutputDefs()) {
+          graph_const_values.insert(out);
+        }
+      }
+    }
     ORT_RETURN_IF_ERROR(Recurse(node, modified, graph_level, logger));
   }
 
@@ -105,14 +130,20 @@ Status NhwcTransformer::ApplyImpl(Graph& graph, bool& modified, int graph_level,
 #ifdef USE_XNNPACK
     else if (IsConvSupportedByXNNPack(NodeFromApiNode(*node), true)) {
       auto domain = node->Domain();
-
       // Skip if domain is incorrect
       if (domain != kOnnxDomain && domain != kOnnxDomainAlias) {
         continue;
       }
+      auto inputdefs = NodeFromApiNode(*node).InputDefs();
+      if (inputdefs.size() != 2 && inputdefs.size() != 3) continue;
+      if (!inputdefs[1]->Exists()) continue;
 
+      if (graph_const_values.find(inputdefs[1]) == graph_const_values.end()) {
+        // Weight is not const, we can't run it.
+        continue;
+      }
       // Skip if unknown rank
-      auto shape = NodeFromApiNode(*node).InputDefs()[0]->Shape();
+      auto shape = inputdefs[0]->Shape();
       if (shape == nullptr) {
         continue;
       }

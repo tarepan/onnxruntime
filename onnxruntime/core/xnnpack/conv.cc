@@ -17,7 +17,6 @@
 //#define _CRT_SECURE_NO_WARNINGS
 
 #include "core/xnnpack/conv.h"
-#include <xnnpack.h>
 
 #include "core/common/safeint.h"
 #include "core/xnnpack/build_kernel_info.h"
@@ -101,6 +100,7 @@ Convolution2d::Convolution2d(const OpKernelInfo& info) : OpKernel(info) {
   size_t group_input_channels = input_channels / groups;
   size_t group_output_channels = output_channels / groups;
   xnn_status status;
+  struct xnn_operator* p;
   status = xnn_create_convolution2d_nhwc_f32(
       gsl::narrow<uint32_t>(input_padding_top),
       gsl::narrow<uint32_t>(input_padding_right),
@@ -122,21 +122,22 @@ Convolution2d::Convolution2d(const OpKernelInfo& info) : OpKernel(info) {
       output_min,
       output_max,
       flags,
-      &op0);
+      &p);
   ORT_ENFORCE(status == xnn_status_success);
+  op0.reset(p);
 }
 Status Convolution2d::Compute(OpKernelContext* context) const {
   std::cout << "running " << context->GetNodeName() << std::endl;
   const auto* X = context->Input<Tensor>(0);
   Tensor* Y = context->Output(0, output_shape);
-  const TensorShape& input_shape = X->Shape();
+  const TensorShape& input_shape = X->Shape();  
   xnn_status status = xnn_setup_convolution2d_nhwc_f32(
-      op0,
+      op0.get(),
       input_shape[0] /* batch size */, input_shape[1] /* input height */, input_shape[2] /* input width */,
       X->Data<float>() /* input */, Y->MutableData<float>() /* output */,
       nullptr /* threadpool */);  
   ORT_ENFORCE(status == xnn_status_success);
-  status = xnn_run_operator(op0, nullptr);
+  status = xnn_run_operator(op0.get(), nullptr);
   ORT_ENFORCE(status == xnn_status_success);  
   return Status::OK();
 }
@@ -159,12 +160,12 @@ Status DepthWiseConvolution2d::Compute(OpKernelContext* context) const {
   Tensor* Y = context->Output(0, output_shape);
   const TensorShape& input_shape = X->Shape();
   xnn_status status = xnn_setup_convolution2d_nhwc_f32(
-      op0,
+      op0.get(),
       input_shape[0] /* batch size */, input_shape[1] /* input height */, input_shape[2] /* input width */,
       X->Data<float>() /* input */, Y->MutableData<float>() /* output */,
       nullptr /* threadpool */);
   ORT_ENFORCE(status == xnn_status_success);
-  status = xnn_run_operator(op0, nullptr);
+  status = xnn_run_operator(op0.get(), nullptr);
   ORT_ENFORCE(status == xnn_status_success);
 
   return Status::OK();
@@ -233,6 +234,7 @@ DepthWiseConvolution2d::DepthWiseConvolution2d(const OpKernelInfo& info) : OpKer
     flags |= XNN_FLAG_TENSORFLOW_SAME_PADDING;
   }
   int64_t depth_multiplier = kernel_shape[3] / input_channels;
+  struct xnn_operator* p;
   xnn_status status = xnn_create_convolution2d_nhwc_f32(
       gsl::narrow<uint32_t>(input_padding_top),
       gsl::narrow<uint32_t>(input_padding_right),
@@ -254,9 +256,9 @@ DepthWiseConvolution2d::DepthWiseConvolution2d(const OpKernelInfo& info) : OpKer
       output_min,
       output_max,
       flags,
-      &op0);
-
+      &p);
   ORT_ENFORCE(status == xnn_status_success);
+  op0.reset(p);
 }
 
 }  // namespace xnnpack
