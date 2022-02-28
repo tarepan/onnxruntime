@@ -66,6 +66,8 @@ stages:
         job_name_suffix: x64_release
         RunOnnxRuntimeTests: ${{ parameters.RunOnnxRuntimeTests }}
         RunStaticCodeAnalysis: false
+        #xnnpack can't support conncurent inferences, and our C# tests has such a multi-thread test
+        RunCSharpTests: false
 
 - stage: x64_release_winml
   dependsOn: []
