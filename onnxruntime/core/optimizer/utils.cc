@@ -18,6 +18,7 @@
 #endif  // #if !defined(ORT_MINIMAL_BUILD)
 
 #if !defined(ORT_MINIMAL_BUILD) || defined(ORT_EXTENDED_MINIMAL_BUILD)
+#include "core/graph/graph.h"
 #include "core/graph/node_arg.h"
 #endif  // #if !defined(ORT_MINIMAL_BUILD) || defined(ORT_EXTENDED_MINIMAL_BUILD)
 
@@ -264,14 +265,6 @@ int32_t IndexOfNodeOutput(const Node& node, const NodeArg& node_arg) {
   return -1;
 }
 
-bool CheckOutputEdges(const Graph& graph, const Node& node, size_t expected_output_edges) {
-  if (graph.NodeProducesGraphOutput(node)) {
-    return false;
-  }
-
-  return node.GetOutputEdgesCount() == expected_output_edges;
-}
-
 // Allow certain domains/ops. We don't know anything about unknown domains/ops (e.g. custom ops),
 // so we have to assume that they are not deterministic, to be on the safe side.
 // We could also allow other known domains (kMSDomain, kMSNchwcDomain, kMSFeaturizersDomain),
@@ -347,6 +340,14 @@ bool GetClipConstantMinMax(const Graph& graph, const Node& node, float& min, flo
 #endif  // #if !defined(ORT_MINIMAL_BUILD)
 
 #if !defined(ORT_MINIMAL_BUILD) || defined(ORT_EXTENDED_MINIMAL_BUILD)
+
+bool CheckOutputEdges(const Graph& graph, const Node& node, size_t expected_output_edges) {
+  if (graph.NodeProducesGraphOutput(node)) {
+    return false;
+  }
+
+  return node.GetOutputEdgesCount() == expected_output_edges;
+}
 
 bool IsScalar(const NodeArg& input_arg) {
   auto shape = input_arg.Shape();
