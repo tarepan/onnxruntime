@@ -337,10 +337,10 @@ TEST(GraphRuntimeOptimizationTest, ConvActivation) {
       });
 }
 
-#endif  // !defined(DISABLE_CONTRIB_OPS)
-
 TEST(GraphRuntimeOptimizationTest, TestNhwcTransformer) {
   CheckNhwcTransformerIsApplied();
 }
+
+#endif  // !defined(DISABLE_CONTRIB_OPS)
 
 }  // namespace onnxruntime::test

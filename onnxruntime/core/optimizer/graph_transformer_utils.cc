@@ -281,10 +281,7 @@ InlinedVector<std::unique_ptr<GraphTransformer>> GenerateTransformersForMinimalB
     const SatApplyContextVariant& apply_context,
     const IExecutionProvider& cpu_execution_provider,
     const InlinedHashSet<std::string>& rules_and_transformers_to_disable) {
-  const bool enable_quant_qdq_cleanup =
-      session_options.config_options.GetConfigOrDefault(kOrtSessionOptionsEnableQuantQDQCleanup, "0") == "1";
   InlinedVector<std::unique_ptr<GraphTransformer>> transformers;
-
   bool saving = std::holds_alternative<SatRuntimeOptimizationSaveContext>(apply_context);
 
   switch (level) {
@@ -303,14 +300,17 @@ InlinedVector<std::unique_ptr<GraphTransformer>> GenerateTransformersForMinimalB
       }
 
       transformers.emplace_back(std::make_unique<ConvActivationFusion>(cpu_ep, apply_context));
-
-      if (!saving && enable_quant_qdq_cleanup) {
-        transformers.emplace_back(std::make_unique<QDQFinalCleanupTransformer>());
-      }
 #else   // !defined(DISABLE_CONTRIB_OPS)
       ORT_UNUSED_PARAMETER(session_options);
       ORT_UNUSED_PARAMETER(apply_context);
 #endif  // !defined(DISABLE_CONTRIB_OPS)
+
+      const bool enable_quant_qdq_cleanup =
+          session_options.config_options.GetConfigOrDefault(kOrtSessionOptionsEnableQuantQDQCleanup, "0") == "1";
+      if (!saving && enable_quant_qdq_cleanup) {
+        transformers.emplace_back(std::make_unique<QDQFinalCleanupTransformer>());
+      }
+
       break;
     }
     case TransformerLevel::Level3: {

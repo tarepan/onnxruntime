@@ -61,7 +61,7 @@ Status NhwcTransformer::ApplyImpl(Graph& graph, bool& modified, int graph_level,
       WrapTransposesAroundNode(*api_graph, *node, {&input_perm}, {&output_perm});
 
       if (domain != kMSDomain) {
-        auto new_node_ref = SwapNodeOpTypeAndDomain(*api_graph, *node, "QLinearConv", kMSDomain);
+        SwapNodeOpTypeAndDomain(*api_graph, *node, "QLinearConv", kMSDomain);
       }
 
       modified = true;
