@@ -30,6 +30,8 @@ if (onnxruntime_MINIMAL_BUILD)
 
   if (onnxruntime_ENABLE_RUNTIME_OPTIMIZATION_IN_MINIMAL_BUILD)
     list(APPEND onnxruntime_optimizer_src_patterns
+      "${ONNXRUNTIME_ROOT}/core/optimizer/conv_activation_fusion.h"
+      "${ONNXRUNTIME_ROOT}/core/optimizer/conv_activation_fusion.cc"
       "${ONNXRUNTIME_INCLUDE_DIR}/core/optimizer/graph_transformer_utils.h"
       "${ONNXRUNTIME_ROOT}/core/optimizer/graph_transformer_utils.cc"
       "${ONNXRUNTIME_ROOT}/core/optimizer/initializer.h"

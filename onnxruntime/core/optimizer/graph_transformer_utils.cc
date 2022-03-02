@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <variant>
 
+#include "core/optimizer/conv_activation_fusion.h"
 #include "core/optimizer/nhwc_transformer.h"
 #include "core/optimizer/qdq_transformer/qdq_final_cleanup.h"
 #include "core/optimizer/qdq_transformer/selectors_actions/qdq_selector_action_transformer.h"
@@ -21,7 +22,6 @@
 #include "core/optimizer/cast_elimination.h"
 #include "core/optimizer/common_subexpression_elimination.h"
 #include "core/optimizer/constant_folding.h"
-#include "core/optimizer/conv_activation_fusion.h"
 #include "core/optimizer/conv_add_fusion.h"
 #include "core/optimizer/conv_bn_fusion.h"
 #include "core/optimizer/conv_mul_fusion.h"
@@ -281,11 +281,8 @@ InlinedVector<std::unique_ptr<GraphTransformer>> GenerateTransformersForMinimalB
     const SatApplyContextVariant& apply_context,
     const IExecutionProvider& cpu_execution_provider,
     const InlinedHashSet<std::string>& rules_and_transformers_to_disable) {
-  const bool disable_quant_qdq =
-      session_options.config_options.GetConfigOrDefault(kOrtSessionOptionsDisableQuantQDQ, "0") == "1";
   const bool enable_quant_qdq_cleanup =
       session_options.config_options.GetConfigOrDefault(kOrtSessionOptionsEnableQuantQDQCleanup, "0") == "1";
-
   InlinedVector<std::unique_ptr<GraphTransformer>> transformers;
 
   bool saving = std::holds_alternative<SatRuntimeOptimizationSaveContext>(apply_context);
@@ -293,14 +290,29 @@ InlinedVector<std::unique_ptr<GraphTransformer>> GenerateTransformersForMinimalB
   switch (level) {
     case TransformerLevel::Level1:
       break;
-    case TransformerLevel::Level2:
+    case TransformerLevel::Level2: {
+#if !defined(DISABLE_CONTRIB_OPS)
+      const bool disable_quant_qdq =
+          session_options.config_options.GetConfigOrDefault(kOrtSessionOptionsDisableQuantQDQ, "0") == "1";
+
+      // runtime optimizations only support CPU EP now
+      const InlinedHashSet<std::string_view> cpu_ep = {onnxruntime::kCpuExecutionProvider};
+
       if (!disable_quant_qdq) {
         transformers.emplace_back(std::make_unique<QDQSelectorActionTransformer>(apply_context));
       }
+
+      transformers.emplace_back(std::make_unique<ConvActivationFusion>(cpu_ep, apply_context));
+
       if (!saving && enable_quant_qdq_cleanup) {
         transformers.emplace_back(std::make_unique<QDQFinalCleanupTransformer>());
       }
+#else   // !defined(DISABLE_CONTRIB_OPS)
+      ORT_UNUSED_PARAMETER(session_options);
+      ORT_UNUSED_PARAMETER(apply_context);
+#endif  // !defined(DISABLE_CONTRIB_OPS)
       break;
+    }
     case TransformerLevel::Level3: {
       // currently the only level 3 optimizer is the NhwcTransformer which is fully supported at runtime
       if (!saving) {
