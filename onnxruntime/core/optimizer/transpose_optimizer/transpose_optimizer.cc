@@ -1824,7 +1824,7 @@ std::optional<OptimizerCtx> MakeOptimizerContext(api::GraphRef& graph, bool allo
     if (opset.has_value()) {
       error_msg = "Unsupported ONNX opset";
     }
-	
+
     return std::nullopt;
   }
 
@@ -1977,11 +1977,12 @@ OptimizeResult Optimize(api::GraphRef& graph, bool allow_extended_ops,
   auto ctx = MakeOptimizerContext(graph, allow_extended_ops, provider_type, mode, layout_sensitive_ops, error_msg);
   if (ctx == std::nullopt) {
     if (!error_msg.empty()) {
-      result.error_msg = std::move(error_msg);
+      result.error_msg = error_msg;
     }
-	
+
     return result;
   }
+
   return OptimizeImpl(*ctx);
 }
 
