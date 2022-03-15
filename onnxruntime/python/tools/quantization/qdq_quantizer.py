@@ -98,6 +98,11 @@ class QDQQuantizer(ONNXQuantizer):
         self.model.remove_nodes(self.nodes_to_remove)
 
     def quantize_model(self):
+        '''
+        Qauantize the stored ONNX model.
+
+        :return: Quantized onnx model as in-memory `ModelProto`
+        '''
         if self.dedicated_qdq_pair:
             for node in self.model.nodes():
                 if self.should_quantize(node):
@@ -121,6 +126,7 @@ class QDQQuantizer(ONNXQuantizer):
         self.model.model.producer_name = __producer__
         self.model.model.producer_version = __version__
 
+        # TODO: Delete return statement because no ORT code use Returned value.
         return self.model.model
 
     def try_replacing_upstream_output(self, upstream_output_name, output_name):

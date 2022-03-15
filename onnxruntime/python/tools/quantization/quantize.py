@@ -142,7 +142,9 @@ def quantize(model,
                                   symmetric_activation, quantization_params, nodes_to_quantize, nodes_to_exclude,
                                   op_types_to_quantize)
 
+        # Execute model quantization
         quantizer.quantize_model()
+
         return quantizer.model.model
     else:
         raise ValueError('Only 8 and 7 bit quantization is currently supported')
@@ -287,7 +289,9 @@ def quantize_static(model_input,
             op_types_to_quantize,
             extra_options)
 
+    # Execute model quantization
     quantizer.quantize_model()
+
     quantizer.model.save_model_to_file(model_output, use_external_data_format)
 
 
@@ -364,5 +368,7 @@ def quantize_dynamic(model_input: Path,
         op_types_to_quantize,
         extra_options)
 
+    # Execute model quantization
     quantizer.quantize_model()
+
     quantizer.model.save_model_to_file(model_output, use_external_data_format)

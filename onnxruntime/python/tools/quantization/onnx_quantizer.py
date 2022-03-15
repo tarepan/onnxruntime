@@ -119,7 +119,10 @@ class ONNXQuantizer:
                                       self.extra_options)
         sub_quanitzer.parent = self
         sub_quanitzer.graph_scope = "{}{}/".format(self.graph_scope, graph_key)
+
+        # Execute subgraph quantization
         sub_quanitzer.quantize_model()
+
         return sub_quanitzer.model.model.graph
 
     def quantize_node_with_sub_graph(self, node):
@@ -276,6 +279,11 @@ class ONNXQuantizer:
                 self.generated_value_names.add(output_name)
 
     def quantize_model(self):
+        '''
+        Qauantize the stored ONNX model.
+
+        :return: Quantized onnx model as in-memory `ModelProto`
+        '''
         if self.has_QDQ_nodes():
             logging.warning(
                 "Please check if the model is already quantized."
@@ -313,6 +321,7 @@ class ONNXQuantizer:
         self.model.model.producer_name = __producer__
         self.model.model.producer_version = __version__
 
+        # TODO: Delete return statement because no ORT code use Returned value.
         return self.model.model
 
     @staticmethod
