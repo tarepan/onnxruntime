@@ -13,6 +13,7 @@ import numpy as np
 from pathlib import Path
 
 from onnx import onnx_pb as onnx_proto
+from onnx import ModelProto
 from onnxruntime import SessionOptions, InferenceSession, GraphOptimizationLevel
 
 from .quant_utils import QuantizationMode, QuantizedValueType, QuantizedInitializer, QuantizedValue
@@ -42,9 +43,9 @@ def optimize_model(model_path : Path):
     return optimized_model
 
 
-def load_model(model_path : Path, optimize=True, handle_gemm_with_matmul=True):
+def load_model(model_path : Path, optimize=True, handle_gemm_with_matmul=True) -> ModelProto:
 
-    model = optimize_model(Path(model_path)) if optimize else onnx.load(Path(model_path))
+    model: ModelProto = optimize_model(Path(model_path)) if optimize else onnx.load(Path(model_path))
 
     if handle_gemm_with_matmul:
         onnx_model = ONNXModel(model)

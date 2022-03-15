@@ -12,7 +12,7 @@ import logging
 import onnx
 import onnx.numpy_helper
 from onnx import onnx_pb as onnx_proto
-from onnx import TensorProto
+from onnx import ModelProto, TensorProto
 from onnxruntime import SessionOptions, InferenceSession, GraphOptimizationLevel
 
 from .quant_utils import QuantizationMode, QuantizedValueType, QuantizedInitializer, QuantizedValue
@@ -26,7 +26,7 @@ from .onnx_quantizer import ONNXQuantizer
 
 
 class QDQQuantizer(ONNXQuantizer):
-    def __init__(self, model, per_channel, reduce_range, mode, static, weight_qType, input_qType, tensors_range,
+    def __init__(self, model: ModelProto, per_channel, reduce_range, mode, static, weight_qType, input_qType, tensors_range,
                  nodes_to_quantize, nodes_to_exclude, op_types_to_quantize, extra_options={}):
         ONNXQuantizer.__init__(self, model, per_channel, reduce_range, mode, static, weight_qType, input_qType,
                                tensors_range, nodes_to_quantize, nodes_to_exclude, op_types_to_quantize, extra_options)

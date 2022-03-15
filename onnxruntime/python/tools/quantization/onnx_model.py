@@ -1,11 +1,15 @@
 import onnx
+from onnx import ModelProto
 import itertools
 from .quant_utils import find_by_name, attribute_to_kwarg
 from pathlib import Path
 
 class ONNXModel:
-    def __init__(self, model):
-        self.model = model
+    '''
+    Wrapper of `ModelProto` with flatten accessors and utilities.
+    '''
+    def __init__(self, model: ModelProto):
+        self.model: ModelProto = model
 
     def nodes(self):
         return self.model.graph.node
