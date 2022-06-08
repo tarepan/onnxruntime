@@ -7,6 +7,10 @@ namespace contrib {
 
 using namespace rnn::detail;
 
+/**
+ * com.microsoft::DynamicQuantizeLSTM operator kernel.
+ * x:fp32 => dynamically quantized cell calculation => fp32
+ */
 class DynamicQuantizeLSTM : public OpKernel, public LSTMBase {
  public:
   DynamicQuantizeLSTM(const OpKernelInfo& info) : OpKernel(info), LSTMBase(info) {}

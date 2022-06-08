@@ -299,7 +299,10 @@ Status DeepCpuLstmOp::Compute(OpKernelContext* context) const {
       R_2.Init(1, recurrent_weights, hidden_weights_size_per_direction, packed_R_, nullptr);
     }
 
+    // ==== The Cumputation =====================================================
     return LSTMBase::ComputeImpl<float, float>(*context, W_1, W_2, R_1, R_2);
+    // ==========================================================================
+
   } else if (X.IsDataType<double>()) {
     /* Need to update all the helpers to support double...
     status = ComputeImpl<double>(*context); */

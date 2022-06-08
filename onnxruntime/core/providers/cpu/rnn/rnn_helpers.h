@@ -131,6 +131,9 @@ void ReverseSequence(gsl::span<const T> inputs,
 
 // A has size M x K, B has size N x K (transposed), and C has size M x N
 // We check that A, B and C are large enough before calling the lower level GEMM implementation
+/**
+ * BLAS-like GEMM
+ */
 template <typename TSpanAIter, typename TSpanBIter, typename TSpanCIter>
 void ComputeGemm(const int M,
                  const int N,

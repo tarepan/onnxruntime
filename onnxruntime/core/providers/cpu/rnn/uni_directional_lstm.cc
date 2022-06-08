@@ -216,6 +216,13 @@ void UniDirectionalLstm<T>::AllocateQuantizeBuffers(int max_sequence_length) {
   }
 }
 
+/**
+ * Execute Uni-directional LSTM computation.
+ *
+ * X' = WX                                       --- time-batched input MM (maximizing weight reuse)
+ * for t in range(T)
+ *   [f_t', i_t', o_t', ci_t'] = X'[t] + R h_t   --- 
+ */
 template <typename T>
 template <typename WeightT>
 void UniDirectionalLstm<T>::Compute(const gsl::span<const T>& inputs_arg,
@@ -277,13 +284,16 @@ void UniDirectionalLstm<T>::Compute(const gsl::span<const T>& inputs_arg,
 
   AllocateQuantizeBuffers<WeightT>(max_sequence_length);
 
+  // ==== Compute X' = WX ==========================================================================
   // apply the weights to all the inputs and save to output_IOFC
-  ComputeGemm(total_rows, hidden_size_x4, input_size_, alpha, inputs.cbegin(), inputs.cend(),
-              input_weights,
-              beta, output_iofc_.begin(), output_iofc_.end(), hidden_size_x4,
+  // `output_iofc_ = 1 * inputs * input_weights + 0 * output_iofc_`
+  ComputeGemm(total_rows, hidden_size_x4, input_size_, alpha, inputs.cbegin(), inputs.cend(), // M, N, K, a=1, A, A_end
+              input_weights,                                                                  // B
+              beta, output_iofc_.begin(), output_iofc_.end(), hidden_size_x4,                 // b=0, C, C_end, ldc
               quantized_input_or_a_.begin(),
               nullptr,
               thread_pool_);
+  // ==========================================================================================
 
   DumpMatrix("Xt*(W[iofc]^T)", output_iofc_.data(), total_rows, hidden_size_x4);
 
@@ -322,22 +332,26 @@ void UniDirectionalLstm<T>::Compute(const gsl::span<const T>& inputs_arg,
 
     // run through steps sequentially
     for (int step = 0; step < max_sequence_length; step++) {
+      // ==== Single time step =====================================================================================
 #if defined(DUMP_MATRIXES)
       const std::string row_str = " [row=" + std::to_string(row) + ",seqno=" + std::to_string(step) + "]";
 #endif
 
+      // Get X'[t] (step_out_IOFC) from X' (output_iofc_)
       span_T_iter step_out_IOFC = output_iofc_.begin() + (step * batch_size_ + seq_start) * hidden_size_x4;
 
-      // calculate Xt*(W[iofc]^T) + Ht-t*R[iofc]
+      // ==== Compute [f_t', i_t', o_t', ci_t'] = X'[t] + R h_t-1 ===================================
+      // `step_out_IOFC = 1 * previous_state * recurrent_weights + 1 * step_out_IOFC`
       // Do it sequentially to avoid nested parallelism
-      ComputeGemm(num_seq_to_compute_adjusted, hidden_size_x4, hidden_size_, alpha,
-                  previous_state, previous_state_end,       // Ht-1
-                  recurrent_weights,                        // R[iofc]
-                  beta, step_out_IOFC, output_iofc_.end(),  // input contains Xt*(W[iofc]^T)
-                  hidden_size_x4,
+      ComputeGemm(num_seq_to_compute_adjusted, hidden_size_x4, hidden_size_, alpha, // M, N, K, a=1
+                  previous_state, previous_state_end,       // A, A_end    - h_t-1
+                  recurrent_weights,                        // B           - R[iofc]
+                  beta, step_out_IOFC, output_iofc_.end(),  // b=1, C, C_end - X'[t]
+                  hidden_size_x4,                           // ldc
                   quantized_input_or_a_.begin() + (seq_start * hidden_size_),
                   quantized_C_buffer_.begin() + (seq_start * hidden_size_x4),
                   ttp);
+      // ============================================================================================
 
       DumpMatrix("Xt*(W[iofc]^T) + Ht-t*R[iofc]" + row_str, &*step_out_IOFC, num_seq_to_compute_adjusted, hidden_size_x4);
 
@@ -382,6 +396,7 @@ void UniDirectionalLstm<T>::Compute(const gsl::span<const T>& inputs_arg,
 
       previous_state = batched_output + seq_start * hidden_size_;
       previous_state_end = batched_output_end;
+      // ==== /Single time step ====================================================================================
     }
   };
 

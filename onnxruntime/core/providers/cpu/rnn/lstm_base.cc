@@ -28,6 +28,7 @@ Status LSTMBase::ComputeImpl(OpKernelContext& context,
 
   auto& logger = context.Logger();
 
+  // FP32
   const Tensor& X = *context.Input<Tensor>(0);  // inputs. [seq_length, batch_size, input_size]
 
   // optional
@@ -162,8 +163,10 @@ Status LSTMBase::ComputeImpl(OpKernelContext& context,
                                         activation_funcs_.Entries()[0], activation_funcs_.Entries()[1],
                                         activation_funcs_.Entries()[2], clip_, thread_pool);
 
+    // ==== Execute LSTM Computation ==============================================
     fw.Compute(input, sequence_lens_span, num_directions_, W_1, R_1, output_1,
                hidden_output_1, last_cell_1);
+    // ============================================================================
   }
 
   if (!output.empty())
@@ -257,6 +260,9 @@ template Status LSTMBase::ComputeImpl<float, float>(OpKernelContext& context,
                                                     const rnn::detail::GemmWeights<float>& R_1,
                                                     const rnn::detail::GemmWeights<float>& R_2) const;
 
+/**
+ * Quantized cell computation.
+ **/
 template Status LSTMBase::ComputeImpl<float, uint8_t>(OpKernelContext& context,
                                                       const rnn::detail::GemmWeights<uint8_t>& W_1,
                                                       const rnn::detail::GemmWeights<uint8_t>& W_2,

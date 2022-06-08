@@ -243,6 +243,10 @@ void ComputeGemm(const int M,
   }
 }
 
+/**
+ * C <- DynamicQuant(A::fp32) * B::u8 + int32(C::fp32)
+ * Activation dynamic quantization + QGEMM + Activation dequantization.
+ **/
 void ComputeGemm(const int M,
                  const int N,
                  const int K,
@@ -264,11 +268,10 @@ void ComputeGemm(const int M,
   ORT_ENFORCE(weights.quant_para_);
   ORT_ENFORCE(alpha == 1.0f && (beta == 0.0f || beta == 1.0f), "Quantized GEMM only support alpha equal to 1.0f and beta equal to 0.0f or 1.0f");
 
+  // Input A dynamic quantization
   float a_scale;
   uint8_t a_zero_point;
   GetQuantizationParameter(A, M * K, a_scale, a_zero_point, thread_pool);
-
-  // quantize the data
   ParQuantizeLinear(A, quantized_A_buffer, M * K, a_scale, a_zero_point, thread_pool);
 
   bool b_is_signed = weights.quant_para_->is_signed;
@@ -286,6 +289,7 @@ void ComputeGemm(const int M,
     ld_C_buffer = static_cast<size_t>(N);
   }
 
+  // Output requantization in QGEMM function
   MLAS_QGEMM_SCALE_BIAS_OUTPUT_PROCESSOR output_processor(
       C, ldc, scale_multiplier.data(), nullptr,
       beta == 1.0f ? MLAS_QGEMM_OUTPUT_MODE::AccumulateMode : MLAS_QGEMM_OUTPUT_MODE::ZeroMode,
