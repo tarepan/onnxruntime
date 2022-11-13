@@ -255,6 +255,13 @@ class ONNXQuantizer:
         return False
 
     def should_quantize(self, node):
+        '''
+        name in `.nodes_to_quantize`
+        name not in `.nodes_to_exclude`
+        && op_type in `.op_types_to_quantize`
+        && pass matmul settings
+        => should quantize the node
+        '''
         if self.nodes_to_quantize is not None and len(
                 self.nodes_to_quantize) != 0 and node.name not in self.nodes_to_quantize:
             return False
@@ -290,18 +297,19 @@ class ONNXQuantizer:
                 "Please check if the model is already quantized."
                 "Note you don't need to quantize a QAT model. OnnxRuntime support to run QAT model directly.")
 
+        # Quantize operator nodes
         for node in self.model.nodes():
             # quantize subgraphes if have
             if self.enable_subgraph_quantization:
                 node = self.quantize_node_with_sub_graph(node)
 
             number_of_existing_new_nodes = len(self.new_nodes)
-            if self.should_quantize(node):
-                op_quantizer = CreateOpQuantizer(self, node)
-            else:
-                op_quantizer = CreateDefaultOpQuantizer(self, node)
 
+            # Execute operator quantization
+            create_op_quant = CreateOpQuantizer if self.should_quantize(node) else CreateDefaultOpQuantizer
+            op_quantizer = create_op_quant(self, node)
             op_quantizer.quantize()
+
             for i in range(number_of_existing_new_nodes, len(self.new_nodes)):
                 for output_name in self.new_nodes[i].output:
                     self.generated_value_names.add(output_name)
@@ -311,6 +319,7 @@ class ONNXQuantizer:
         # extend is used to append to the list for a protobuf fields
         # https://developers.google.com/protocol-buffers/docs/reference/python-generated?csw=1#fields
         self.model.graph().ClearField('node')
+        # Update model with new quantized nodes
         self.model.graph().node.extend(self.new_nodes)
 
         # Remove ununsed initializers from graph, starting from the top level graph.
@@ -765,6 +774,9 @@ class ONNXQuantizer:
 
     def quantize_weight_per_channel(self, weight_name, weight_qType, channel_axis, reduce_range=True,
                                     keep_float_weight=False):
+        '''
+        :return: quantized weight name, zero point name, scale name
+        '''
         # Find if this input is already quantized
         if weight_name in self.quantized_value_map:
             quantized_value = self.quantized_value_map[weight_name]
@@ -829,7 +841,6 @@ class ONNXQuantizer:
         Given a value (input/output) which is quantized, add a DequantizeLinear node to dequantize
         it back to float32
             parameter value_name: value to dequantize
-            parameter new_nodes_list: List of new nodes created before processing current node
             return: None if there is already a DequantizeLinear node that dequantizes it
                     A DequantizeLinear node otherwise
         '''

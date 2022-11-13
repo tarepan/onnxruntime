@@ -248,7 +248,10 @@ class ONNXModel:
 
     def save_model_to_file(self, output_path, use_external_data_format=False):
         '''
-        Save model to external data, which is needed for model size > 2GB
+        Save the stored ONNX model (in-memory `ModelProto`) as a file.
+
+        :param output_path: File path to which the model is saved
+        :param use_external_data_format: Save model to external data, which is needed for model size > 2GB
         '''
         self.topological_sort()
         if use_external_data_format:

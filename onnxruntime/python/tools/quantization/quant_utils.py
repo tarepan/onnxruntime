@@ -80,6 +80,11 @@ class QuantType(Enum):
 
 
 class QuantFormat(Enum):
+    '''
+    Quantization representation formats
+        QOperator - Operator Oriented
+        QDQ       - Tensor   Oriented
+    '''
     QOperator = 0
     QDQ = 1
 

@@ -114,6 +114,7 @@ class QDQQuantizer(ONNXQuantizer):
         for node in self.model.nodes():
             if self.should_quantize(node):
                 op_quantizer = CreateQDQQuantizer(self, node)
+                # Execute node quantization
                 op_quantizer.quantize()
 
         self.quantize_tensors()

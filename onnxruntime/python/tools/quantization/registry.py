@@ -20,12 +20,19 @@ from .operators.pooling import QLinearPool
 from .operators.concat import QLinearConcat, QDQConcat
 from .operators.gemm import QLinearGemm, QDQGemm
 
+# For example, "Conv" is mapped into either
+#   - IntegerOpsRegistry::ConvInteger
+#   - QLinearOpsRegistry::QLinearConv
+#   - QDQRegistry::QDQConv
+
+# Map operators into quantized operators (common between x and y)
 CommonOpsRegistry = {
     "Gather": GatherQuant,
     "Transpose" : Direct8BitOp,
     "EmbedLayerNormalization": EmbedLayerNormalizationQuant,
 }
 
+# Map operators into IntegerOps
 IntegerOpsRegistry = {
     "Conv": ConvInteger,
     "MatMul": MatMulInteger,
@@ -34,6 +41,7 @@ IntegerOpsRegistry = {
 }
 IntegerOpsRegistry.update(CommonOpsRegistry)
 
+# Map operators into QLinearOps
 QLinearOpsRegistry = {
     "ArgMax": QArgMax,
     "Conv": QLinearConv,
@@ -58,6 +66,7 @@ QLinearOpsRegistry = {
 }
 QLinearOpsRegistry.update(CommonOpsRegistry)
 
+# Map operators into QDQ
 QDQRegistry = {
     "Conv": QDQConv,
     "Gemm": QDQGemm,
@@ -76,6 +85,7 @@ QDQRegistry = {
 
 
 def CreateDefaultOpQuantizer(onnx_quantizer, node):
+    # (fp32_op) => (DQ + fp32_op)
     return QuantOperatorBase(onnx_quantizer, node)
 
 
@@ -83,10 +93,14 @@ def CreateOpQuantizer(onnx_quantizer, node):
     registry = IntegerOpsRegistry if onnx_quantizer.mode == QuantizationMode.IntegerOps else QLinearOpsRegistry
     if node.op_type in registry.keys():
         return registry[node.op_type](onnx_quantizer, node)
-    return QuantOperatorBase(onnx_quantizer, node)
+    else:
+        # (fp32_op) => (DQ + fp32_op)
+        return QuantOperatorBase(onnx_quantizer, node)
 
 
 def CreateQDQQuantizer(onnx_quantizer, node):
     if node.op_type in QDQRegistry.keys():
         return QDQRegistry[node.op_type](onnx_quantizer, node)
-    return QDQOperatorBase(onnx_quantizer, node)
+    else:
+        # (fp32_op) => (DQ + fp32_op)
+        return QDQOperatorBase(onnx_quantizer, node)

@@ -236,13 +236,12 @@ def quantize_static(model_input,
                                                  MinMax and when CalibMovingAverage is set to True.
     '''
 
-    mode = QuantizationMode.QLinearOps
-
+    # Prepare quantization configs
     if not op_types_to_quantize or len(op_types_to_quantize) == 0:
         op_types_to_quantize = list(QLinearOpsRegistry.keys())
 
     model = load_model(Path(model_input), optimize_model, False)
-
+    ## Calibration
     calib_extra_options_keys = [
         ('CalibTensorRangeSymmetric', 'symmetric'),
         ('CalibMovingAverage', 'moving_average'),
@@ -261,12 +260,14 @@ def quantize_static(model_input,
 
     check_static_quant_arguments(quant_format, activation_type, weight_type)
 
+    # Pack configs into the quantizer
+    ## Operator-Oriented format
     if quant_format is QuantFormat.QOperator:
         quantizer = ONNXQuantizer(
             model,
             per_channel,
             reduce_range,
-            mode,
+            QuantizationMode.QLinearOps,
             True,  # static
             weight_type,
             activation_type,
@@ -275,12 +276,13 @@ def quantize_static(model_input,
             nodes_to_exclude,
             op_types_to_quantize,
             extra_options)
+    ## Tensor-Oriented format
     else:
         quantizer = QDQQuantizer(
             model,
             per_channel,
             reduce_range,
-            mode,
+            QuantizationMode.QLinearOps,
             True,  # static
             weight_type,
             activation_type,
@@ -293,6 +295,7 @@ def quantize_static(model_input,
     # Execute model quantization
     quantizer.quantize_model()
 
+    # Save the quantized ONNX model
     quantizer.model.save_model_to_file(model_output, use_external_data_format)
 
 
@@ -345,8 +348,7 @@ def quantize_dynamic(model_input: Path,
             MatMulConstBOnly = True/False: Default is True for dynamic mode. If enabled, only MatMul with const B will be quantized.
     '''
 
-    mode = QuantizationMode.IntegerOps
-
+    # Prepare quantization configs
     if not op_types_to_quantize or len(op_types_to_quantize) == 0:
         op_types_to_quantize = list(IntegerOpsRegistry.keys())
 
@@ -355,15 +357,16 @@ def quantize_dynamic(model_input: Path,
     if 'MatMulConstBOnly' not in extra_options:
         extra_options['MatMulConstBOnly'] = True
 
-    quantizer = ONNXQuantizer(
+    # Pack configs into the quantizer
+    quantizer = ONNXQuantizer( #Only Tensor-Oriented format
         model,
         per_channel,
         reduce_range,
-        mode,
+        QuantizationMode.IntegerOps, # No Q/DQ ops for DynamicLinearQuant?
         False,  #static
         weight_type,
         QuantType.QUInt8, #dynamic activation only supports uint8
-        None,
+        None, # dynamic activation never use calibration data
         nodes_to_quantize,
         nodes_to_exclude,
         op_types_to_quantize,
@@ -372,4 +375,5 @@ def quantize_dynamic(model_input: Path,
     # Execute model quantization
     quantizer.quantize_model()
 
+    # Save the quantized ONNX model
     quantizer.model.save_model_to_file(model_output, use_external_data_format)
